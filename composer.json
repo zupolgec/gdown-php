@@ -7,11 +7,11 @@
     "authors": [
         {
             "name": "Mattia Trapani",
-            "email": "zupolgec@users.noreply.github.com"
+            "email": "mattia.trapani@gmail.com"
         }
     ],
     "require": {
-        "php": "^8.0",
+        "php": "^8.3",
         "ext-curl": "*",
         "ext-json": "*",
         "ext-mbstring": "*",
@@ -21,9 +21,7 @@
         "symfony/css-selector": "^6.0|^7.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.0|^11.0",
-        "phpstan/phpstan": "^1.10",
-        "squizlabs/php_codesniffer": "^3.7"
+        "pestphp/pest": "^3.0|^4.0"
     },
     "autoload": {
         "psr-4": {
@@ -39,14 +37,19 @@
         "bin/gdown"
     ],
     "scripts": {
-        "test": "phpunit",
-        "phpstan": "phpstan analyse src tests --level=8",
-        "cs-check": "phpcs --standard=PSR12 src tests",
-        "cs-fix": "phpcbf --standard=PSR12 src tests"
+        "test": "pest",
+        "lint": "mago lint",
+        "analyze": "mago analyze",
+        "fmt": "mago fmt",
+        "fmt-check": "mago fmt --dry-run",
+        "update-ua": "./scripts/update-user-agent.sh"
     },
     "config": {
         "sort-packages": true,
-        "preferred-install": "dist"
+        "preferred-install": "dist",
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
     },
     "minimum-stability": "stable",
     "prefer-stable": true

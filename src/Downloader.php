@@ -8,8 +8,8 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Cookie\FileCookieJar;
 use GuzzleHttp\Exception\GuzzleException;
-use Zupolgec\GDown\Exceptions\FileURLRetrievalException;
 use Symfony\Component\DomCrawler\Crawler;
+use Zupolgec\GDown\Exceptions\FileURLRetrievalException;
 
 class Downloader
 {
@@ -17,16 +17,16 @@ class Downloader
     private const MAX_RETRIES = 3;
 
     private Client $client;
-    private ?string $cookieFile = null;
-    private ?CookieJar $cookieJar = null;
+    private null|string $cookieFile = null;
+    private null|CookieJar $cookieJar = null;
 
     public function __construct(
         private readonly bool $quiet = false,
-        private readonly ?string $proxy = null,
-        private readonly ?float $speedLimit = null,
+        private readonly null|string $proxy = null,
+        private readonly null|float $speedLimit = null,
         private readonly bool $useCookies = true,
         private readonly bool $verify = true,
-        private readonly ?string $userAgent = null
+        private readonly null|string $userAgent = null,
     ) {
         $this->initializeClient();
     }
@@ -36,10 +36,7 @@ class Downloader
         $config = [
             'verify' => $this->verify,
             'headers' => [
-                'User-Agent' => $this->userAgent ??
-                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) ' .
-                    'AppleWebKit/537.36 (KHTML, like Gecko) ' .
-                    'Chrome/39.0.2171.95 Safari/537.36'
+                'User-Agent' => $this->userAgent ?? UserAgent::DEFAULT,
             ],
         ];
 
@@ -79,12 +76,9 @@ class Downloader
     /**
      * Get file information without downloading
      */
-    public function getFileInfo(
-        ?string $url = null,
-        ?string $id = null,
-        bool $fuzzy = false
-    ): FileInfo {
-        if (($url === null && $id === null) || ($url !== null && $id !== null)) {
+    public function getFileInfo(null|string $url = null, null|string $id = null, bool $fuzzy = false): FileInfo
+    {
+        if ($url === null && $id === null || $url !== null && $id !== null) {
             throw new \InvalidArgumentException('Either url or id must be specified');
         }
 
@@ -93,8 +87,10 @@ class Downloader
         }
 
         $urlOrigin = $url;
-        ['fileId' => $gdrive_file_id, 'isDownloadLink' => $is_gdrive_download_link] =
-            UrlParser::parseUrl($url, !$fuzzy);
+        ['fileId' => $gdrive_file_id, 'isDownloadLink' => $is_gdrive_download_link] = UrlParser::parseUrl(
+            $url,
+            !$fuzzy,
+        );
 
         if ($fuzzy && $gdrive_file_id) {
             $url = "https://drive.google.com/uc?id={$gdrive_file_id}";
@@ -104,14 +100,14 @@ class Downloader
         try {
             $response = $this->client->request('GET', $url, [
                 'stream' => true,
-                'allow_redirects' => true
+                'allow_redirects' => true,
             ]);
 
             if ($gdrive_file_id && $is_gdrive_download_link) {
                 // Handle Google Drive confirmation page
                 if (
-                    $response->hasHeader('Content-Type') &&
-                    str_starts_with($response->getHeader('Content-Type')[0], 'text/html')
+                    $response->hasHeader('Content-Type')
+                    && str_starts_with($response->getHeader('Content-Type')[0], 'text/html')
                 ) {
                     $content = (string) $response->getBody();
                     $url = $this->getUrlFromGdriveConfirmation($content);
@@ -120,26 +116,18 @@ class Downloader
             }
 
             $filename = $this->getFilenameFromResponse($response);
-            $size = $response->hasHeader('Content-Length')
-                ? (int) $response->getHeader('Content-Length')[0]
-                : null;
-            $mimeType = $response->hasHeader('Content-Type')
-                ? $response->getHeader('Content-Type')[0]
-                : null;
+            $size = $response->hasHeader('Content-Length') ? (int) $response->getHeader('Content-Length')[0] : null;
+            $mimeType = $response->hasHeader('Content-Type') ? $response->getHeader('Content-Type')[0] : null;
             $lastModified = $this->getModifiedTimeFromResponse($response);
 
             return new FileInfo(
                 name: $filename ?? 'unknown',
                 size: $size,
                 mimeType: $mimeType,
-                lastModified: $lastModified
+                lastModified: $lastModified,
             );
         } catch (GuzzleException $e) {
-            throw new FileURLRetrievalException(
-                "Failed to retrieve file info: " . $e->getMessage(),
-                0,
-                $e
-            );
+            throw new FileURLRetrievalException('Failed to retrieve file info: ' . $e->getMessage(), 0, $e);
         }
     }
 
@@ -147,14 +135,14 @@ class Downloader
      * Download file from URL
      */
     public function download(
-        ?string $url = null,
-        ?string $output = null,
-        ?string $id = null,
+        null|string $url = null,
+        null|string $output = null,
+        null|string $id = null,
         bool $fuzzy = false,
         bool $resume = false,
-        ?string $format = null
+        null|string $format = null,
     ): string {
-        if (($url === null && $id === null) || ($url !== null && $id !== null)) {
+        if ($url === null && $id === null || $url !== null && $id !== null) {
             throw new \InvalidArgumentException('Either url or id must be specified');
         }
 
@@ -163,8 +151,7 @@ class Downloader
         }
 
         $urlOrigin = $url;
-        ['fileId' => $gdriveFileId, 'isDownloadLink' => $isGdriveDownloadLink] =
-            UrlParser::parseUrl($url, !$fuzzy);
+        ['fileId' => $gdriveFileId, 'isDownloadLink' => $isGdriveDownloadLink] = UrlParser::parseUrl($url, !$fuzzy);
 
         if ($fuzzy && $gdriveFileId) {
             $url = "https://drive.google.com/uc?id={$gdriveFileId}";
@@ -173,13 +160,7 @@ class Downloader
         }
 
         // Handle Google Drive download with confirmation page
-        $response = $this->handleGoogleDriveDownload(
-            $url,
-            $urlOrigin,
-            $gdriveFileId,
-            $isGdriveDownloadLink,
-            $format
-        );
+        $response = $this->handleGoogleDriveDownload($url, $urlOrigin, $gdriveFileId, $isGdriveDownloadLink, $format);
 
         $filenameFromUrl = null;
         $lastModifiedTime = null;
@@ -226,7 +207,7 @@ class Downloader
                 try {
                     $response = $this->client->request('GET', $url, [
                         'stream' => true,
-                        'headers' => ['Range' => "bytes={$startSize}-"]
+                        'headers' => ['Range' => "bytes={$startSize}-"],
                     ]);
                 } catch (GuzzleException $e) {
                     // If range not supported, start fresh
@@ -252,7 +233,7 @@ class Downloader
             } else {
                 fwrite(STDERR, "From: {$url}\n");
             }
-            fwrite(STDERR, "To: " . realpath(dirname($output)) . '/' . basename($output) . "\n\n");
+            fwrite(STDERR, 'To: ' . realpath(dirname($output)) . '/' . basename($output) . "\n\n");
         }
 
         $this->downloadToFile($response, $tmpFile, $startSize);
@@ -269,9 +250,9 @@ class Downloader
     private function handleGoogleDriveDownload(
         string $url,
         string $urlOrigin,
-        ?string $gdriveFileId,
+        null|string $gdriveFileId,
         bool $isGdriveDownloadLink,
-        ?string $format
+        null|string $format,
     ) {
         $retries = 0;
 
@@ -291,8 +272,8 @@ class Downloader
                 }
 
                 if (
-                    $response->hasHeader('Content-Type') &&
-                    str_starts_with($response->getHeader('Content-Type')[0], 'text/html')
+                    $response->hasHeader('Content-Type')
+                    && str_starts_with($response->getHeader('Content-Type')[0], 'text/html')
                 ) {
                     $content = (string) $response->getBody();
 
@@ -301,18 +282,21 @@ class Downloader
                         $title = $matches[1];
 
                         if (str_ends_with($title, ' - Google Docs')) {
-                            $url = "https://docs.google.com/document/d/{$gdriveFileId}/export?format=" .
-                                   ($format ?? 'docx');
+                            $url =
+                                "https://docs.google.com/document/d/{$gdriveFileId}/export?format="
+                                . ($format ?? 'docx');
                             $retries++;
                             continue;
                         } elseif (str_ends_with($title, ' - Google Sheets')) {
-                            $url = "https://docs.google.com/spreadsheets/d/{$gdriveFileId}/export?format=" .
-                                   ($format ?? 'xlsx');
+                            $url =
+                                "https://docs.google.com/spreadsheets/d/{$gdriveFileId}/export?format="
+                                . ($format ?? 'xlsx');
                             $retries++;
                             continue;
                         } elseif (str_ends_with($title, ' - Google Slides')) {
-                            $url = "https://docs.google.com/presentation/d/{$gdriveFileId}/export?format=" .
-                                   ($format ?? 'pptx');
+                            $url =
+                                "https://docs.google.com/presentation/d/{$gdriveFileId}/export?format="
+                                . ($format ?? 'pptx');
                             $retries++;
                             continue;
                         }
@@ -338,17 +322,19 @@ class Downloader
                 return $this->client->request('GET', $url, ['stream' => true]);
             } catch (GuzzleException $e) {
                 throw new FileURLRetrievalException(
-                    "Failed to retrieve file url:\n\n" . $e->getMessage() . "\n\n" .
-                    "You may still be able to access the file from the browser:\n\n" .
-                    "\t{$urlOrigin}\n\n" .
-                    "but GDown can't. Please check connections and permissions.",
+                    "Failed to retrieve file url:\n\n"
+                    . $e->getMessage()
+                    . "\n\n"
+                    . "You may still be able to access the file from the browser:\n\n"
+                    . "\t{$urlOrigin}\n\n"
+                    . "but GDown can't. Please check connections and permissions.",
                     0,
-                    $e
+                    $e,
                 );
             }
         }
 
-        throw new FileURLRetrievalException("Maximum retries exceeded");
+        throw new FileURLRetrievalException('Maximum retries exceeded');
     }
 
     private function getUrlFromGdriveConfirmation(string $contents): string
@@ -379,8 +365,7 @@ class Downloader
                 }
 
                 $query = http_build_query($queryParams);
-                return $parsedUrl['scheme'] . '://' . $parsedUrl['host'] .
-                       ($parsedUrl['path'] ?? '') . '?' . $query;
+                return $parsedUrl['scheme'] . '://' . $parsedUrl['host'] . ($parsedUrl['path'] ?? '') . '?' . $query;
             }
 
             // Try to find downloadUrl in JSON
@@ -397,15 +382,13 @@ class Downloader
             }
         }
 
-        throw new FileURLRetrievalException(
-            "Cannot retrieve the public link of the file. " .
-            "You may need to change the permission to " .
-            "'Anyone with the link', or have had many accesses. " .
-            "Check FAQ in https://github.com/wkentaro/gdown?tab=readme-ov-file#faq."
-        );
+        throw new FileURLRetrievalException('Cannot retrieve the public link of the file. '
+        . 'You may need to change the permission to '
+        . "'Anyone with the link', or have had many accesses. "
+        . 'Check FAQ in https://github.com/wkentaro/gdown?tab=readme-ov-file#faq.');
     }
 
-    private function getFilenameFromResponse($response): ?string
+    private function getFilenameFromResponse($response): null|string
     {
         if (!$response->hasHeader('Content-Disposition')) {
             return null;
@@ -426,7 +409,7 @@ class Downloader
         return null;
     }
 
-    private function getModifiedTimeFromResponse($response): ?\DateTimeInterface
+    private function getModifiedTimeFromResponse($response): null|\DateTimeInterface
     {
         if (!$response->hasHeader('Last-Modified')) {
             return null;
@@ -475,7 +458,7 @@ class Downloader
                     $elapsedTime = microtime(true) - $startTime;
                     $expectedTime = ($downloaded - $startSize) / $this->speedLimit;
                     if ($elapsedTime < $expectedTime) {
-                        usleep((int)(($expectedTime - $elapsedTime) * 1000000));
+                        usleep((int) (($expectedTime - $elapsedTime) * 1000000));
                     }
                 }
             }
@@ -488,11 +471,11 @@ class Downloader
         }
     }
 
-    private function showProgress(int $downloaded, ?int $total): void
+    private function showProgress(int $downloaded, null|int $total): void
     {
         if ($total !== null) {
             $percentage = ($downloaded / $total) * 100;
-            $bar = str_repeat('=', (int)($percentage / 2));
+            $bar = str_repeat('=', (int) ($percentage / 2));
             $bar = str_pad($bar, 50, ' ');
             fprintf(
                 STDERR,
@@ -500,7 +483,7 @@ class Downloader
                 $bar,
                 $percentage,
                 $this->formatBytes($downloaded),
-                $this->formatBytes($total)
+                $this->formatBytes($total),
             );
         } else {
             fprintf(STDERR, "\rDownloaded: %s", $this->formatBytes($downloaded));
@@ -513,7 +496,7 @@ class Downloader
         $unitIndex = 0;
         $size = (float) $bytes;
 
-        while ($size >= 1024 && $unitIndex < count($units) - 1) {
+        while ($size >= 1024 && $unitIndex < (count($units) - 1)) {
             $size /= 1024;
             $unitIndex++;
         }

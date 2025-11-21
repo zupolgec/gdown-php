@@ -13,18 +13,18 @@ class GDown
      * Download a file from Google Drive
      */
     public static function download(
-        ?string $url = null,
-        ?string $output = null,
+        null|string $url = null,
+        null|string $output = null,
         bool $quiet = false,
-        ?string $proxy = null,
-        ?float $speed = null,
+        null|string $proxy = null,
+        null|float $speed = null,
         bool $useCookies = true,
         bool $verify = true,
-        ?string $id = null,
+        null|string $id = null,
         bool $fuzzy = false,
         bool $resume = false,
-        ?string $format = null,
-        ?string $userAgent = null
+        null|string $format = null,
+        null|string $userAgent = null,
     ): string {
         $downloader = new Downloader(
             quiet: $quiet,
@@ -32,7 +32,7 @@ class GDown
             speedLimit: $speed,
             useCookies: $useCookies,
             verify: $verify,
-            userAgent: $userAgent
+            userAgent: $userAgent,
         );
 
         return $downloader->download(
@@ -41,7 +41,7 @@ class GDown
             id: $id,
             fuzzy: $fuzzy,
             resume: $resume,
-            format: $format
+            format: $format,
         );
     }
 
@@ -49,20 +49,20 @@ class GDown
      * Get file info without downloading
      */
     public static function getFileInfo(
-        ?string $url = null,
-        ?string $id = null,
+        null|string $url = null,
+        null|string $id = null,
         bool $fuzzy = false,
-        ?string $userAgent = null
+        null|string $userAgent = null,
     ): FileInfo {
         $downloader = new Downloader(
             quiet: true,
-            userAgent: $userAgent
+            userAgent: $userAgent,
         );
 
         return $downloader->getFileInfo(
             url: $url,
             id: $id,
-            fuzzy: $fuzzy
+            fuzzy: $fuzzy,
         );
     }
 }

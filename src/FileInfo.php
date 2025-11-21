@@ -8,11 +8,10 @@ class FileInfo
 {
     public function __construct(
         public readonly string $name,
-        public readonly ?int $size,
-        public readonly ?string $mimeType = null,
-        public readonly ?\DateTimeInterface $lastModified = null
-    ) {
-    }
+        public readonly null|int $size,
+        public readonly null|string $mimeType = null,
+        public readonly null|\DateTimeInterface $lastModified = null,
+    ) {}
 
     /**
      * Get human-readable file size
@@ -27,7 +26,7 @@ class FileInfo
         $size = $this->size;
         $unitIndex = 0;
 
-        while ($size >= 1024 && $unitIndex < count($units) - 1) {
+        while ($size >= 1024 && $unitIndex < (count($units) - 1)) {
             $size /= 1024;
             $unitIndex++;
         }

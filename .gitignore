@@ -2,7 +2,5 @@
 /.phpunit.cache/
 /composer.lock
 *.part
-.DS_Store
-.idea/
 .vscode/
 *.log

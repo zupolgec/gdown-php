@@ -63,10 +63,10 @@ class UrlParser
 
         if ($warning && !$isDownloadLink && $fileId) {
             trigger_error(
-                "You specified a Google Drive link that is not the correct link " .
-                "to download a file. You might want to try --fuzzy option " .
-                "or the following url: https://drive.google.com/uc?id={$fileId}",
-                E_USER_WARNING
+                'You specified a Google Drive link that is not the correct link '
+                . 'to download a file. You might want to try --fuzzy option '
+                . "or the following url: https://drive.google.com/uc?id={$fileId}",
+                E_USER_WARNING,
             );
         }
 
