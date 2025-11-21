@@ -260,15 +260,19 @@ class Downloader
 
         while ($retries < self::MAX_RETRIES) {
             try {
-                $response = $this->client->request('GET', $url, ['stream' => true]);
+                $response = $this->client->request('GET', $url, [
+                    'stream' => true,
+                    'http_errors' => false  // Don't throw on 4xx/5xx status codes
+                ]);
 
                 if (!($gdriveFileId && $isGdriveDownloadLink)) {
                     return $response;
                 }
 
-                // Check if it's a Google Doc/Sheet/Slide
+                // Check if it's a Google Doc/Sheet/Slide (returns 500 on /uc?id= URL)
                 if ($url === $urlOrigin && $response->getStatusCode() === 500) {
-                    $url = "https://drive.google.com/open?id={$gdriveFileId}";
+                    // Force English language for consistent title matching
+                    $url = "https://drive.google.com/open?id={$gdriveFileId}&hl=en";
                     $retries++;
                     continue;
                 }

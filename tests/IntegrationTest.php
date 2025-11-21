@@ -126,3 +126,76 @@ test('library works without fuzzy flag for standard urls', function () {
     expect($result)->toBe($output);
     expect(file_get_contents($output))->toBe('test');
 })->group('integration', 'network');
+
+test('download google doc as docx', function () {
+    $output = $this->testDir . '/test.docx';
+    
+    $result = GDown::download(
+        url: 'https://docs.google.com/document/d/1N__1FO24cDRHBx5PkriAG2yYgroWVK8n0VYfovy4H5M/edit?usp=drive_link',
+        output: $output,
+        quiet: true
+    );
+    
+    expect($result)->toBe($output);
+    expect($output)->toBeFile();
+    expect(filesize($output))->toBeGreaterThan(0);
+    
+    // Verify it's a DOCX (ZIP-based format)
+    $header = file_get_contents($output, false, null, 0, 4);
+    expect($header)->toBe("PK\x03\x04"); // ZIP magic number (DOCX is ZIP)
+})->group('integration', 'network', 'google-docs');
+
+test('download google sheet as xlsx', function () {
+    $output = $this->testDir . '/test.xlsx';
+    
+    $result = GDown::download(
+        url: 'https://docs.google.com/spreadsheets/d/1ZhBKpcvZICW-U2iDI8Oda_LKjFZv1vVG88lQA8woHD8/edit?usp=drive_link',
+        output: $output,
+        quiet: true
+    );
+    
+    expect($result)->toBe($output);
+    expect($output)->toBeFile();
+    expect(filesize($output))->toBeGreaterThan(0);
+    
+    // Verify it's an XLSX (ZIP-based format)
+    $header = file_get_contents($output, false, null, 0, 4);
+    expect($header)->toBe("PK\x03\x04"); // ZIP magic number (XLSX is ZIP)
+})->group('integration', 'network', 'google-docs');
+
+test('download google slides as pptx', function () {
+    $output = $this->testDir . '/test.pptx';
+    
+    $result = GDown::download(
+        url: 'https://docs.google.com/presentation/d/1oaQ5Db5GOQZPiaFaA64xjtxvlqVB-DLzKkIz_2zK_0k/edit?usp=drive_link',
+        output: $output,
+        quiet: true
+    );
+    
+    expect($result)->toBe($output);
+    expect($output)->toBeFile();
+    expect(filesize($output))->toBeGreaterThan(0);
+    
+    // Verify it's a PPTX (ZIP-based format)
+    $header = file_get_contents($output, false, null, 0, 4);
+    expect($header)->toBe("PK\x03\x04"); // ZIP magic number (PPTX is ZIP)
+})->group('integration', 'network', 'google-docs');
+
+test('download google doc as pdf', function () {
+    $output = $this->testDir . '/test-doc.pdf';
+    
+    $result = GDown::download(
+        url: 'https://docs.google.com/document/d/1N__1FO24cDRHBx5PkriAG2yYgroWVK8n0VYfovy4H5M/edit?usp=drive_link',
+        output: $output,
+        quiet: true,
+        format: 'pdf'
+    );
+    
+    expect($result)->toBe($output);
+    expect($output)->toBeFile();
+    expect(filesize($output))->toBeGreaterThan(0);
+    
+    // Verify it's a PDF
+    $header = file_get_contents($output, false, null, 0, 4);
+    expect($header)->toBe('%PDF');
+})->group('integration', 'network', 'google-docs');
