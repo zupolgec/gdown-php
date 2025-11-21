@@ -36,7 +36,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Zupolgec\GDown\GDown;
 use Zupolgec\GDown\Exceptions\FileURLRetrievalException;
 
-class Zupolgec\\GDown\\GDownCommand extends Command
+class GDownCommand extends Command
 {
     protected function configure(): void
     {
