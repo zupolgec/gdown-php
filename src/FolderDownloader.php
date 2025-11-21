@@ -11,7 +11,7 @@ use Symfony\Component\DomCrawler\Crawler;
 class FolderDownloader
 {
     private const MAX_FILES = 50;
-    
+
     private Client $client;
     private Downloader $downloader;
 
@@ -22,13 +22,13 @@ class FolderDownloader
         $this->client = new Client([
             'verify' => true,
             'headers' => [
-                'User-Agent' => $this->userAgent ?? 
+                'User-Agent' => $this->userAgent ??
                     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) ' .
                     'AppleWebKit/537.36 (KHTML, like Gecko) ' .
                     'Chrome/39.0.2171.95 Safari/537.36'
             ],
         ]);
-        
+
         $this->downloader = new Downloader(
             quiet: $this->quiet,
             userAgent: $this->userAgent
@@ -37,7 +37,7 @@ class FolderDownloader
 
     /**
      * Download entire folder from Google Drive
-     * 
+     *
      * @return array{files: array<string>, folder: string}
      */
     public function downloadFolder(
@@ -47,14 +47,14 @@ class FolderDownloader
     ): array {
         // Extract folder ID from URL
         $folderId = $this->extractFolderId($url);
-        
+
         if (!$folderId) {
             throw new \InvalidArgumentException('Invalid Google Drive folder URL');
         }
 
         // Get folder contents
         $files = $this->getFolderContents($folderId);
-        
+
         if (count($files) > self::MAX_FILES) {
             throw new FolderContentsMaximumLimitException(
                 sprintf(
@@ -82,10 +82,10 @@ class FolderDownloader
         // Download all files
         $downloaded = [];
         $index = 0;
-        
+
         foreach ($files as $file) {
             $index++;
-            
+
             if (!$quiet && !$this->quiet) {
                 fwrite(STDERR, sprintf(
                     "[%d/%d] Downloading: %s\n",
@@ -97,13 +97,13 @@ class FolderDownloader
 
             try {
                 $outputFile = $folderName . DIRECTORY_SEPARATOR . $file['name'];
-                
+
                 // Download file
                 $this->downloader->download(
                     id: $file['id'],
                     output: $outputFile
                 );
-                
+
                 $downloaded[] = $outputFile;
             } catch (\Exception $e) {
                 if (!$quiet && !$this->quiet) {
@@ -158,11 +158,11 @@ class FolderDownloader
     private function getFolderName(string $folderId): string
     {
         $url = "https://drive.google.com/drive/folders/{$folderId}";
-        
+
         try {
             $response = $this->client->request('GET', $url);
             $html = (string) $response->getBody();
-            
+
             // Try to extract folder name from title
             if (preg_match('/<title>(.+?) - Google Drive<\/title>/', $html, $matches)) {
                 $name = trim($matches[1]);
@@ -179,24 +179,24 @@ class FolderDownloader
 
     /**
      * Get list of files in folder
-     * 
+     *
      * @return array<array{id: string, name: string}>
      */
     private function getFolderContents(string $folderId): array
     {
         $url = "https://drive.google.com/drive/folders/{$folderId}";
-        
+
         try {
             $response = $this->client->request('GET', $url);
             $html = (string) $response->getBody();
-            
+
             $files = [];
-            
+
             // Method 1: Try to extract from JSON data in page
             if (preg_match('/\["([^"]+)","([^"]+)",\["application\/vnd\.google-apps\.folder/s', $html, $matches)) {
                 // This is a complex pattern - let's use a simpler approach
             }
-            
+
             // Method 2: Parse data from JavaScript
             // Look for file data in window initialization
             $lines = explode("\n", $html);
@@ -206,7 +206,7 @@ class FolderDownloader
                     foreach ($matches as $match) {
                         $fileId = $match[1];
                         $fileName = $match[2];
-                        
+
                         // Avoid duplicates
                         $exists = false;
                         foreach ($files as $file) {
@@ -215,7 +215,7 @@ class FolderDownloader
                                 break;
                             }
                         }
-                        
+
                         if (!$exists) {
                             $files[] = [
                                 'id' => $fileId,
@@ -225,7 +225,7 @@ class FolderDownloader
                     }
                 }
             }
-            
+
             return $files;
         } catch (\Exception $e) {
             throw new \RuntimeException(

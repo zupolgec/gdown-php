@@ -15,7 +15,7 @@ class Downloader
 {
     private const CHUNK_SIZE = 524288; // 512KB
     private const MAX_RETRIES = 3;
-    
+
     private Client $client;
     private ?string $cookieFile = null;
     private ?CookieJar $cookieJar = null;
@@ -36,7 +36,7 @@ class Downloader
         $config = [
             'verify' => $this->verify,
             'headers' => [
-                'User-Agent' => $this->userAgent ?? 
+                'User-Agent' => $this->userAgent ??
                     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) ' .
                     'AppleWebKit/537.36 (KHTML, like Gecko) ' .
                     'Chrome/39.0.2171.95 Safari/537.36'
@@ -56,7 +56,7 @@ class Downloader
         if ($this->useCookies) {
             $homeDir = $_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? '';
             $this->cookieFile = $homeDir . '/.cache/gdown/cookies.txt';
-            
+
             if (file_exists($this->cookieFile) && filesize($this->cookieFile) > 0) {
                 // Check if file contains valid JSON
                 $content = file_get_contents($this->cookieFile);
@@ -93,7 +93,7 @@ class Downloader
         }
 
         $urlOrigin = $url;
-        ['fileId' => $gdrive_file_id, 'isDownloadLink' => $is_gdrive_download_link] = 
+        ['fileId' => $gdrive_file_id, 'isDownloadLink' => $is_gdrive_download_link] =
             UrlParser::parseUrl($url, !$fuzzy);
 
         if ($fuzzy && $gdrive_file_id) {
@@ -109,8 +109,10 @@ class Downloader
 
             if ($gdrive_file_id && $is_gdrive_download_link) {
                 // Handle Google Drive confirmation page
-                if ($response->hasHeader('Content-Type') && 
-                    str_starts_with($response->getHeader('Content-Type')[0], 'text/html')) {
+                if (
+                    $response->hasHeader('Content-Type') &&
+                    str_starts_with($response->getHeader('Content-Type')[0], 'text/html')
+                ) {
                     $content = (string) $response->getBody();
                     $url = $this->getUrlFromGdriveConfirmation($content);
                     $response = $this->client->request('GET', $url, ['stream' => true]);
@@ -118,7 +120,7 @@ class Downloader
             }
 
             $filename = $this->getFilenameFromResponse($response);
-            $size = $response->hasHeader('Content-Length') 
+            $size = $response->hasHeader('Content-Length')
                 ? (int) $response->getHeader('Content-Length')[0]
                 : null;
             $mimeType = $response->hasHeader('Content-Type')
@@ -161,7 +163,7 @@ class Downloader
         }
 
         $urlOrigin = $url;
-        ['fileId' => $gdriveFileId, 'isDownloadLink' => $isGdriveDownloadLink] = 
+        ['fileId' => $gdriveFileId, 'isDownloadLink' => $isGdriveDownloadLink] =
             UrlParser::parseUrl($url, !$fuzzy);
 
         if ($fuzzy && $gdriveFileId) {
@@ -181,12 +183,12 @@ class Downloader
 
         $filenameFromUrl = null;
         $lastModifiedTime = null;
-        
+
         if ($gdriveFileId && $isGdriveDownloadLink) {
             $filenameFromUrl = $this->getFilenameFromResponse($response);
             $lastModifiedTime = $this->getModifiedTimeFromResponse($response);
         }
-        
+
         if ($filenameFromUrl === null) {
             $filenameFromUrl = basename(parse_url($url, PHP_URL_PATH) ?: 'download');
         }
@@ -213,13 +215,13 @@ class Downloader
         // Handle partial downloads
         $tmpFile = null;
         $startSize = 0;
-        
+
         if ($resume) {
             $existingTmpFiles = glob(dirname($output) . '/' . basename($output) . '.*.part');
             if (count($existingTmpFiles) === 1) {
                 $tmpFile = $existingTmpFiles[0];
                 $startSize = filesize($tmpFile);
-                
+
                 // Request with Range header for resume
                 try {
                     $response = $this->client->request('GET', $url, [
@@ -272,7 +274,7 @@ class Downloader
         ?string $format
     ) {
         $retries = 0;
-        
+
         while ($retries < self::MAX_RETRIES) {
             try {
                 $response = $this->client->request('GET', $url, ['stream' => true]);
@@ -288,26 +290,28 @@ class Downloader
                     continue;
                 }
 
-                if ($response->hasHeader('Content-Type') && 
-                    str_starts_with($response->getHeader('Content-Type')[0], 'text/html')) {
+                if (
+                    $response->hasHeader('Content-Type') &&
+                    str_starts_with($response->getHeader('Content-Type')[0], 'text/html')
+                ) {
                     $content = (string) $response->getBody();
-                    
+
                     // Check for Google Docs/Sheets/Slides
                     if (preg_match('/<title>(.+)<\/title>/', $content, $matches)) {
                         $title = $matches[1];
-                        
+
                         if (str_ends_with($title, ' - Google Docs')) {
-                            $url = "https://docs.google.com/document/d/{$gdriveFileId}/export?format=" . 
+                            $url = "https://docs.google.com/document/d/{$gdriveFileId}/export?format=" .
                                    ($format ?? 'docx');
                             $retries++;
                             continue;
                         } elseif (str_ends_with($title, ' - Google Sheets')) {
-                            $url = "https://docs.google.com/spreadsheets/d/{$gdriveFileId}/export?format=" . 
+                            $url = "https://docs.google.com/spreadsheets/d/{$gdriveFileId}/export?format=" .
                                    ($format ?? 'xlsx');
                             $retries++;
                             continue;
                         } elseif (str_ends_with($title, ' - Google Slides')) {
-                            $url = "https://docs.google.com/presentation/d/{$gdriveFileId}/export?format=" . 
+                            $url = "https://docs.google.com/presentation/d/{$gdriveFileId}/export?format=" .
                                    ($format ?? 'pptx');
                             $retries++;
                             continue;
@@ -330,7 +334,7 @@ class Downloader
                 // Need to redirect with confirmation
                 $content = (string) $response->getBody();
                 $url = $this->getUrlFromGdriveConfirmation($content);
-                
+
                 return $this->client->request('GET', $url, ['stream' => true]);
             } catch (GuzzleException $e) {
                 throw new FileURLRetrievalException(
@@ -350,7 +354,7 @@ class Downloader
     private function getUrlFromGdriveConfirmation(string $contents): string
     {
         $lines = explode("\n", $contents);
-        
+
         foreach ($lines as $line) {
             // Try to find download URL in href
             if (preg_match('/href="(\/uc\?export=download[^"]+)"/', $line, $matches)) {
@@ -361,21 +365,21 @@ class Downloader
             // Try to find download form
             $crawler = new Crawler($line);
             $form = $crawler->filter('#download-form')->first();
-            
+
             if ($form->count() > 0) {
                 $action = $form->attr('action');
                 $action = str_replace('&amp;', '&', $action);
                 $parsedUrl = parse_url($action);
                 parse_str($parsedUrl['query'] ?? '', $queryParams);
-                
+
                 foreach ($form->filter('input[type="hidden"]') as $input) {
                     $name = $input->getAttribute('name');
                     $value = $input->getAttribute('value');
                     $queryParams[$name] = $value;
                 }
-                
+
                 $query = http_build_query($queryParams);
-                return $parsedUrl['scheme'] . '://' . $parsedUrl['host'] . 
+                return $parsedUrl['scheme'] . '://' . $parsedUrl['host'] .
                        ($parsedUrl['path'] ?? '') . '?' . $query;
             }
 
@@ -448,7 +452,7 @@ class Downloader
             $contentLength = $response->hasHeader('Content-Length')
                 ? (int) $response->getHeader('Content-Length')[0]
                 : null;
-            
+
             $totalSize = $contentLength !== null ? $contentLength + $startSize : null;
             $downloaded = $startSize;
 

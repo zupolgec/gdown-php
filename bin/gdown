@@ -34,6 +34,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Zupolgec\GDown\GDown;
+use Zupolgec\GDown\FolderDownloader;
 use Zupolgec\GDown\Exceptions\FileURLRetrievalException;
 
 class GDownCommand extends Command
@@ -113,6 +114,12 @@ class GDownCommand extends Command
                 'i',
                 InputOption::VALUE_NONE,
                 'Get file info (name and size) without downloading'
+            )
+            ->addOption(
+                'folder',
+                null,
+                InputOption::VALUE_NONE,
+                'Download entire folder (supports up to 50 files)'
             );
     }
 
@@ -130,6 +137,7 @@ class GDownCommand extends Command
         $format = $input->getOption('format');
         $userAgent = $input->getOption('user-agent');
         $infoOnly = $input->getOption('info');
+        $isFolder = $input->getOption('folder');
 
         // Parse speed limit
         $speed = null;
@@ -151,6 +159,31 @@ class GDownCommand extends Command
         }
 
         try {
+            if ($isFolder) {
+                // Download folder
+                if (!$quiet) {
+                    $output->writeln("<info>Downloading folder...</info>");
+                }
+
+                $folderDownloader = new FolderDownloader(
+                    quiet: $quiet,
+                    userAgent: $userAgent
+                );
+                $results = $folderDownloader->downloadFolder(
+                    url: $url,
+                    output: $outputPath,
+                    quiet: $quiet
+                );
+
+                if (!$quiet) {
+                    $output->writeln("\n<info>Folder download completed:</info>");
+                    $output->writeln("  Downloaded files: " . count($results['files']));
+                    $output->writeln("  Location: " . realpath($results['folder']));
+                }
+
+                return Command::SUCCESS;
+            }
+
             if ($infoOnly) {
                 // Get file info only
                 $fileInfo = GDown::getFileInfo(

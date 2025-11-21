@@ -36,7 +36,7 @@ class DownloaderTest extends TestCase
     {
         $downloader = new Downloader(quiet: true);
         $output = $this->testDir . '/test_file.txt';
-        
+
         // Download a small file from a public URL
         $result = $downloader->download(
             url: 'https://raw.githubusercontent.com/wkentaro/gdown/3.1.0/gdown/__init__.py',
@@ -51,7 +51,7 @@ class DownloaderTest extends TestCase
     public function testDownloadWithInvalidUrl(): void
     {
         $this->expectException(FileURLRetrievalException::class);
-        
+
         $downloader = new Downloader(quiet: true);
         $downloader->download(
             url: 'https://invalid-domain-that-does-not-exist-12345.com/file.txt',
@@ -63,7 +63,7 @@ class DownloaderTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Either url or id must be specified');
-        
+
         $downloader = new Downloader(quiet: true);
         $downloader->download();
     }
@@ -72,7 +72,7 @@ class DownloaderTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Either url or id must be specified');
-        
+
         $downloader = new Downloader(quiet: true);
         $downloader->download(url: 'https://example.com', id: '123');
     }
@@ -81,7 +81,7 @@ class DownloaderTest extends TestCase
     {
         $downloader = new Downloader(quiet: true);
         $output = $this->testDir . '/test_file.txt';
-        
+
         // This will attempt to download from Google Drive
         // We just test that the URL is properly constructed
         try {
@@ -98,7 +98,7 @@ class DownloaderTest extends TestCase
     public function testGetFileInfo(): void
     {
         $downloader = new Downloader(quiet: true);
-        
+
         // Get info from a regular URL
         $fileInfo = $downloader->getFileInfo(
             url: 'https://raw.githubusercontent.com/wkentaro/gdown/main/README.md'
@@ -111,7 +111,7 @@ class DownloaderTest extends TestCase
     public function testDownloadWithOutputDirectory(): void
     {
         $downloader = new Downloader(quiet: true);
-        
+
         $result = $downloader->download(
             url: 'https://raw.githubusercontent.com/wkentaro/gdown/3.1.0/gdown/__init__.py',
             output: $this->testDir . '/'
@@ -125,7 +125,7 @@ class DownloaderTest extends TestCase
     {
         $downloader = new Downloader(quiet: true);
         $output = $this->testDir . '/resume_test.txt';
-        
+
         // First download
         $downloader->download(
             url: 'https://raw.githubusercontent.com/wkentaro/gdown/main/README.md',

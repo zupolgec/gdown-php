@@ -61,6 +61,16 @@ gdown https://drive.google.com/uc?id=FILE_ID -O output.zip
 gdown --fuzzy 'https://drive.google.com/file/d/10DXTyitz_PnjGP9u7vDzp916iRshE43K/view?usp=drive_link'
 ```
 
+#### Download Folders
+
+```bash
+# Download entire folder (up to 50 files)
+gdown --folder https://drive.google.com/drive/folders/FOLDER_ID
+
+# Download folder to specific directory
+gdown --folder https://drive.google.com/drive/folders/FOLDER_ID --output my_folder
+```
+
 #### Get File Info (Without Downloading)
 
 ```bash
@@ -207,6 +217,23 @@ $file = GDown::download(
 );
 ```
 
+#### Download Folders
+
+```php
+<?php
+
+use Zupolgec\GDown\FolderDownloader;
+
+// Download entire folder (up to 50 files)
+$downloader = new FolderDownloader();
+$result = $downloader->downloadFolder(
+    url: 'https://drive.google.com/drive/folders/FOLDER_ID',
+    output: 'my_folder'  // Optional: defaults to folder name from Drive
+);
+
+echo "Downloaded {$result['files']} files to {$result['folder']}\n";
+```
+
 ## Example: Testing with Your Provided URL
 
 ```bash
@@ -230,7 +257,7 @@ gdown https://drive.google.com/file/d/10DXTyitz_PnjGP9u7vDzp916iRshE43K/view?usp
 | Proxy support | ✅ | ✅ |
 | Cookie support | ✅ | ✅ |
 | Google Docs formats | ✅ | ✅ |
-| Folder download | ✅ | ❌ (planned) |
+| Folder download | ✅ | ✅ |
 | **File info preview** | ❌ | ✅ **NEW!** |
 
 ### Unique PHP Features
