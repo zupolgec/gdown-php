@@ -199,3 +199,17 @@ test('download google doc as pdf', function () {
     $header = file_get_contents($output, false, null, 0, 4);
     expect($header)->toBe('%PDF');
 })->group('integration', 'network', 'google-docs');
+
+test('download with verbose output (non-quiet mode)', function () {
+    $output = $this->testDir . '/test-verbose.txt';
+    
+    // This test ensures STDERR output code paths work
+    $result = GDown::download(
+        url: 'https://drive.google.com/file/d/1aAlW5_7bNNsmInqDMMbSCtmzzhp7B1HY/view?usp=sharing',
+        output: $output,
+        quiet: false  // Test non-quiet mode
+    );
+    
+    expect($result)->toBe($output);
+    expect(file_get_contents($output))->toBe('test');
+})->group('integration', 'network');

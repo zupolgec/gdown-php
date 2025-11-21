@@ -46,7 +46,7 @@ class Downloader
                 'https' => $this->proxy,
             ];
             if (!$this->quiet) {
-                fwrite(STDERR, "Using proxy: {$this->proxy}\n");
+                fwrite(\STDERR, "Using proxy: {$this->proxy}\n");
             }
         }
 
@@ -190,7 +190,7 @@ class Downloader
         // Check if file already exists (resume mode)
         if ($resume && file_exists($output)) {
             if (!$this->quiet) {
-                fwrite(STDERR, "Skipping already downloaded file {$output}\n");
+                fwrite(\STDERR, "Skipping already downloaded file {$output}\n");
             }
             return $output;
         }
@@ -225,17 +225,17 @@ class Downloader
         }
 
         if (!$this->quiet) {
-            fwrite(STDERR, "Downloading...\n");
+            fwrite(\STDERR, "Downloading...\n");
             if ($resume && $startSize > 0) {
-                fwrite(STDERR, "Resume: {$tmpFile}\n");
+                fwrite(\STDERR, "Resume: {$tmpFile}\n");
             }
             if ($urlOrigin !== $url) {
-                fwrite(STDERR, "From (original): {$urlOrigin}\n");
-                fwrite(STDERR, "From (redirected): {$url}\n");
+                fwrite(\STDERR, "From (original): {$urlOrigin}\n");
+                fwrite(\STDERR, "From (redirected): {$url}\n");
             } else {
-                fwrite(STDERR, "From: {$url}\n");
+                fwrite(\STDERR, "From: {$url}\n");
             }
-            fwrite(STDERR, 'To: ' . realpath(dirname($output)) . '/' . basename($output) . "\n\n");
+            fwrite(\STDERR, 'To: ' . realpath(dirname($output)) . '/' . basename($output) . "\n\n");
         }
 
         $this->downloadToFile($response, $tmpFile, $startSize);
@@ -465,7 +465,7 @@ class Downloader
             $downloaded = $startSize;
 
             if (!$this->quiet && $totalSize !== null) {
-                fwrite(STDERR, sprintf("Total size: %s\n", $this->formatBytes($totalSize)));
+                fwrite(\STDERR, sprintf("Total size: %s\n", $this->formatBytes($totalSize)));
             }
 
             $startTime = microtime(true);
@@ -513,7 +513,7 @@ class Downloader
             }
 
             if (!$this->quiet) {
-                fwrite(STDERR, "\n");
+                fwrite(\STDERR, "\n");
             }
         } finally {
             fclose($fp);

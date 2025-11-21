@@ -63,7 +63,7 @@ class FolderDownloader
         }
 
         if (!$quiet && !$this->quiet) {
-            fwrite(STDERR, sprintf("Downloading %d files to %s\n\n", count($files), realpath($folderName)));
+            fwrite(\STDERR, sprintf("Downloading %d files to %s\n\n", count($files), realpath($folderName)));
         }
 
         // Download all files
@@ -74,7 +74,7 @@ class FolderDownloader
             $index++;
 
             if (!$quiet && !$this->quiet) {
-                fwrite(STDERR, sprintf("[%d/%d] Downloading: %s\n", $index, count($files), $file['name']));
+                fwrite(\STDERR, sprintf("[%d/%d] Downloading: %s\n", $index, count($files), $file['name']));
             }
 
             try {
@@ -89,13 +89,13 @@ class FolderDownloader
                 $downloaded[] = $outputFile;
             } catch (\Exception $e) {
                 if (!$quiet && !$this->quiet) {
-                    fwrite(STDERR, sprintf("  ⚠ Failed: %s\n", $e->getMessage()));
+                    fwrite(\STDERR, sprintf("  ⚠ Failed: %s\n", $e->getMessage()));
                 }
             }
         }
 
         if (!$quiet && !$this->quiet) {
-            fwrite(STDERR, sprintf(
+            fwrite(\STDERR, sprintf(
                 "\n✓ Downloaded %d/%d files to %s\n",
                 count($downloaded),
                 count($files),
