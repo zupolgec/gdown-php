@@ -23,9 +23,9 @@ class FolderDownloader
             'verify' => true,
             'headers' => [
                 'User-Agent' => $this->userAgent ??
-                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) ' .
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' .
                     'AppleWebKit/537.36 (KHTML, like Gecko) ' .
-                    'Chrome/39.0.2171.95 Safari/537.36'
+                    'Chrome/98.0.4758.102 Safari/537.36'
             ],
         ]);
 
@@ -184,45 +184,81 @@ class FolderDownloader
      */
     private function getFolderContents(string $folderId): array
     {
-        $url = "https://drive.google.com/drive/folders/{$folderId}";
+        // Canonicalize language to English
+        $url = "https://drive.google.com/drive/folders/{$folderId}?hl=en";
 
         try {
             $response = $this->client->request('GET', $url);
             $html = (string) $response->getBody();
 
-            $files = [];
-
-            // Method 1: Try to extract from JSON data in page
-            if (preg_match('/\["([^"]+)","([^"]+)",\["application\/vnd\.google-apps\.folder/s', $html, $matches)) {
-                // This is a complex pattern - let's use a simpler approach
+            // Find the script tag with window['_DRIVE_ivd']
+            $encodedData = null;
+            
+            // Try different quote styles
+            if (preg_match("/window\['_DRIVE_ivd'\]\s*=\s*'([^']+)'/", $html, $matches)) {
+                $encodedData = $matches[1];
+            } elseif (preg_match('/window\[\'_DRIVE_ivd\'\]\s*=\s*\'([^\']+)\'/', $html, $matches)) {
+                $encodedData = $matches[1];
             }
 
-            // Method 2: Parse data from JavaScript
-            // Look for file data in window initialization
-            $lines = explode("\n", $html);
-            foreach ($lines as $line) {
-                // Match file entries - simplified pattern
-                if (preg_match_all('/\["([a-zA-Z0-9_-]{25,})"[^\]]*"([^"]+\.(?:txt|pdf|jpg|jpeg|png|zip|doc|docx|xls|xlsx|ppt|pptx))"/', $line, $matches, PREG_SET_ORDER)) {
-                    foreach ($matches as $match) {
-                        $fileId = $match[1];
-                        $fileName = $match[2];
+            if ($encodedData === null) {
+                // Debug: check if the variable exists at all
+                if (strpos($html, '_DRIVE_ivd') === false) {
+                    throw new \RuntimeException(
+                        'Cannot retrieve the folder information from the link. ' .
+                        'The _DRIVE_ivd variable was not found in the page. ' .
+                        'You may need to change the permission to "Anyone with the link".'
+                    );
+                }
+                throw new \RuntimeException(
+                    'Cannot retrieve the folder information from the link. ' .
+                    'Found _DRIVE_ivd but could not extract data. ' .
+                    'You may need to change the permission to "Anyone with the link", ' .
+                    'or have had many accesses.'
+                );
+            }
 
-                        // Avoid duplicates
-                        $exists = false;
-                        foreach ($files as $file) {
-                            if ($file['id'] === $fileId) {
-                                $exists = true;
-                                break;
-                            }
-                        }
+            // Decode the escaped string (convert \x hex sequences)
+            $decoded = $this->decodeEscapedString($encodedData);
+            
+            // Parse as JSON
+            $folderArr = json_decode($decoded, true);
+            
+            if ($folderArr === null) {
+                throw new \RuntimeException('Failed to parse folder data JSON');
+            }
 
-                        if (!$exists) {
-                            $files[] = [
-                                'id' => $fileId,
-                                'name' => $fileName
-                            ];
-                        }
-                    }
+            $folderContents = $folderArr[0] ?? [];
+            
+            if (!is_array($folderContents)) {
+                return [];
+            }
+
+            $files = [];
+            
+            // Each element in folderContents is an array where:
+            // [0] = file ID
+            // [2] = file name  
+            // [3] = MIME type
+            foreach ($folderContents as $item) {
+                if (!is_array($item) || count($item) < 4) {
+                    continue;
+                }
+                
+                $fileId = $item[0] ?? null;
+                $fileName = $item[2] ?? null;
+                $mimeType = $item[3] ?? null;
+                
+                // Skip folders
+                if ($mimeType === 'application/vnd.google-apps.folder') {
+                    continue;
+                }
+                
+                if ($fileId && $fileName) {
+                    $files[] = [
+                        'id' => $fileId,
+                        'name' => $fileName
+                    ];
                 }
             }
 
@@ -234,5 +270,21 @@ class FolderDownloader
                 $e
             );
         }
+    }
+    
+    /**
+     * Decode escaped string from JavaScript (handles \x hex sequences)
+     */
+    private function decodeEscapedString(string $str): string
+    {
+        // Replace \x sequences with actual bytes
+        $decoded = preg_replace_callback('/\\\\\\\\x([0-9a-fA-F]{2})/', function ($matches) {
+            return chr(hexdec($matches[1]));
+        }, $str);
+        
+        // Handle other escape sequences
+        $decoded = stripcslashes($decoded);
+        
+        return $decoded;
     }
 }
