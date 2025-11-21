@@ -57,19 +57,15 @@ test('download with both url and id', function () {
     );
 })->throws(\InvalidArgumentException::class, 'Either url or id must be specified');
 
-test('download with id', function () {
+test('download with invalid id throws exception', function () {
     $downloader = new Downloader(quiet: true);
     $output = $this->testDir . '/test_file.txt';
 
-    try {
-        $downloader->download(
-            id: '1cKSdgtWrPgvEsBGmjWALOH33taGyVXKb',
-            output: $output,
-        );
-    } catch (FileURLRetrievalException $e) {
-        expect(strtolower($e->getMessage()))->toContain('retrieve');
-    }
-});
+    $downloader->download(
+        id: 'invalid_file_id_that_does_not_exist',
+        output: $output,
+    );
+})->throws(FileURLRetrievalException::class);
 
 test('get file info', function () {
     $downloader = new Downloader(quiet: true);
