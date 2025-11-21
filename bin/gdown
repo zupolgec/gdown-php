@@ -1,0 +1,234 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Find and load Composer's autoloader
+$autoloadPaths = [
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../../../autoload.php',
+];
+
+$autoloaderFound = false;
+foreach ($autoloadPaths as $path) {
+    if (file_exists($path)) {
+        require_once $path;
+        $autoloaderFound = true;
+        break;
+    }
+}
+
+if (!$autoloaderFound) {
+    fwrite(
+        STDERR,
+        'Error: Unable to find Composer autoloader. ' .
+        'Please run "composer install" first.' . PHP_EOL
+    );
+    exit(1);
+}
+
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\OutputInterface;
+use Zupolgec\GDown\GDown;
+use Zupolgec\GDown\Exceptions\FileURLRetrievalException;
+
+class Zupolgec\\GDown\\GDownCommand extends Command
+{
+    protected function configure(): void
+    {
+        $this
+            ->setName('gdown')
+            ->setDescription('Google Drive Public File Downloader')
+            ->addArgument(
+                'url_or_id',
+                InputArgument::REQUIRED,
+                'URL or file ID to download from'
+            )
+            ->addOption(
+                'output',
+                'O',
+                InputOption::VALUE_REQUIRED,
+                'Output file name/path'
+            )
+            ->addOption(
+                'quiet',
+                'q',
+                InputOption::VALUE_NONE,
+                'Suppress logging except errors'
+            )
+            ->addOption(
+                'fuzzy',
+                null,
+                InputOption::VALUE_NONE,
+                'Extract Google Drive file ID from any Drive URL'
+            )
+            ->addOption(
+                'proxy',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Download using the specified proxy (protocol://host:port)'
+            )
+            ->addOption(
+                'speed',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Download speed limit (e.g., 10MB for 10MB/s)'
+            )
+            ->addOption(
+                'no-cookies',
+                null,
+                InputOption::VALUE_NONE,
+                'Don\'t use cookies in ~/.cache/gdown/cookies.txt'
+            )
+            ->addOption(
+                'no-check-certificate',
+                null,
+                InputOption::VALUE_NONE,
+                'Don\'t check the server\'s TLS certificate'
+            )
+            ->addOption(
+                'continue',
+                'c',
+                InputOption::VALUE_NONE,
+                'Resume getting partially-downloaded files'
+            )
+            ->addOption(
+                'format',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Format for Google Docs/Sheets/Slides (docx, xlsx, pptx, etc.)'
+            )
+            ->addOption(
+                'user-agent',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'User-Agent to use for downloading'
+            )
+            ->addOption(
+                'info',
+                'i',
+                InputOption::VALUE_NONE,
+                'Get file info (name and size) without downloading'
+            );
+    }
+
+    protected function execute(InputInterface $input, OutputInterface $output): int
+    {
+        $urlOrId = $input->getArgument('url_or_id');
+        $outputPath = $input->getOption('output');
+        $quiet = $input->getOption('quiet');
+        $fuzzy = $input->getOption('fuzzy');
+        $proxy = $input->getOption('proxy');
+        $speedStr = $input->getOption('speed');
+        $useCookies = !$input->getOption('no-cookies');
+        $verify = !$input->getOption('no-check-certificate');
+        $resume = $input->getOption('continue');
+        $format = $input->getOption('format');
+        $userAgent = $input->getOption('user-agent');
+        $infoOnly = $input->getOption('info');
+
+        // Parse speed limit
+        $speed = null;
+        if ($speedStr !== null) {
+            $speed = $this->parseFileSize($speedStr);
+            if ($speed === null) {
+                $output->writeln('<error>Invalid speed format. Use: 10MB, 256KB, etc.</error>');
+                return Command::FAILURE;
+            }
+        }
+
+        // Determine if it's a URL or ID
+        $url = null;
+        $id = null;
+        if (preg_match('/^https?:\/\//', $urlOrId)) {
+            $url = $urlOrId;
+        } else {
+            $id = $urlOrId;
+        }
+
+        try {
+            if ($infoOnly) {
+                // Get file info only
+                $fileInfo = GDown::getFileInfo(
+                    url: $url,
+                    id: $id,
+                    fuzzy: $fuzzy,
+                    userAgent: $userAgent
+                );
+
+                $output->writeln("<info>File Name:</info> {$fileInfo->name}");
+                $output->writeln("<info>File Size:</info> {$fileInfo->getFormattedSize()}");
+                
+                if ($fileInfo->mimeType) {
+                    $output->writeln("<info>MIME Type:</info> {$fileInfo->mimeType}");
+                }
+                
+                if ($fileInfo->lastModified) {
+                    $output->writeln("<info>Last Modified:</info> {$fileInfo->lastModified->format('Y-m-d H:i:s')}");
+                }
+
+                return Command::SUCCESS;
+            }
+
+            // Download file
+            $downloadedFile = GDown::download(
+                url: $url,
+                output: $outputPath,
+                quiet: $quiet,
+                proxy: $proxy,
+                speed: $speed,
+                useCookies: $useCookies,
+                verify: $verify,
+                id: $id,
+                fuzzy: $fuzzy,
+                resume: $resume,
+                format: $format,
+                userAgent: $userAgent
+            );
+
+            if (!$quiet) {
+                $output->writeln("\n<info>Download completed:</info> {$downloadedFile}");
+            }
+
+            return Command::SUCCESS;
+        } catch (FileURLRetrievalException $e) {
+            $output->writeln("<error>{$e->getMessage()}</error>");
+            return Command::FAILURE;
+        } catch (\Exception $e) {
+            $output->writeln("<error>Error: {$e->getMessage()}</error>");
+            $output->writeln("\nTo report issues, please visit https://github.com/gdown/gdown-php/issues");
+            return Command::FAILURE;
+        }
+    }
+
+    private function parseFileSize(?string $size): ?float
+    {
+        if ($size === null) {
+            return null;
+        }
+
+        if (preg_match('/^([0-9.]+)(GB|MB|KB|B)$/i', $size, $matches)) {
+            $value = (float) $matches[1];
+            $unit = strtoupper($matches[2]);
+
+            return match ($unit) {
+                'B' => $value,
+                'KB' => $value * 1024,
+                'MB' => $value * 1024 * 1024,
+                'GB' => $value * 1024 * 1024 * 1024,
+                default => null,
+            };
+        }
+
+        return null;
+    }
+}
+
+$application = new Application('GDown PHP', '1.0.0');
+$application->add(new GDownCommand());
+$application->setDefaultCommand('gdown', true);
+$application->run();

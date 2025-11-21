@@ -1,0 +1,53 @@
+{
+    "name": "zupolgec/gdown-php",
+    "description": "Google Drive Public File Downloader when Curl/Wget Fails - PHP implementation",
+    "type": "library",
+    "keywords": ["google-drive", "downloader", "download", "curl", "wget"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Mattia Trapani",
+            "email": "zupolgec@users.noreply.github.com"
+        }
+    ],
+    "require": {
+        "php": "^8.0",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "guzzlehttp/guzzle": "^7.0",
+        "symfony/console": "^6.0|^7.0",
+        "symfony/dom-crawler": "^6.0|^7.0",
+        "symfony/css-selector": "^6.0|^7.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0|^11.0",
+        "phpstan/phpstan": "^1.10",
+        "squizlabs/php_codesniffer": "^3.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "Zupolgec\\GDown\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Zupolgec\\GDown\\Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/gdown"
+    ],
+    "scripts": {
+        "test": "phpunit",
+        "phpstan": "phpstan analyse src tests --level=8",
+        "cs-check": "phpcs --standard=PSR12 src tests",
+        "cs-fix": "phpcbf --standard=PSR12 src tests"
+    },
+    "config": {
+        "sort-packages": true,
+        "preferred-install": "dist"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
