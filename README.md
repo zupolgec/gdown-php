@@ -11,6 +11,7 @@ GDown PHP is a PHP port of the popular Python [gdown](https://github.com/wkentar
 
 ## Features
 
+- ✅ **Folder downloads** - Download entire Google Drive folders (up to 50 files)
 - ✅ **Skip security notices** - Download large files that curl/wget can't handle
 - ✅ **File info preview** - Check file name and size BEFORE downloading (unique to PHP version!)
 - ✅ **Fuzzy URL parsing** - Extract file IDs from any Google Drive URL format
