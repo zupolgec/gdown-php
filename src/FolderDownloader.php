@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Zupolgec\GDown;
 
 use GuzzleHttp\Client;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Zupolgec\GDown\Exceptions\FolderContentsMaximumLimitException;
 
 class FolderDownloader
@@ -13,11 +15,15 @@ class FolderDownloader
 
     private Client $client;
     private Downloader $downloader;
+    private LoggerInterface $logger;
 
     public function __construct(
         private readonly bool $quiet = false,
         private readonly null|string $userAgent = null,
+        null|LoggerInterface $logger = null,
     ) {
+        $this->logger = $logger ?? ($quiet ? new NullLogger() : new StderrLogger());
+        
         $this->client = new Client([
             'verify' => true,
             'headers' => [
@@ -28,6 +34,7 @@ class FolderDownloader
         $this->downloader = new Downloader(
             quiet: $this->quiet,
             userAgent: $this->userAgent,
+            logger: $this->logger,
         );
     }
 
@@ -62,9 +69,7 @@ class FolderDownloader
             mkdir($folderName, 0755, true);
         }
 
-        if (!$quiet && !$this->quiet) {
-            fwrite(\STDERR, sprintf("Downloading %d files to %s\n\n", count($files), realpath($folderName)));
-        }
+        $this->logger->info(sprintf("Downloading %d files to %s", count($files), realpath($folderName)));
 
         // Download all files
         $downloaded = [];
@@ -73,9 +78,7 @@ class FolderDownloader
         foreach ($files as $file) {
             $index++;
 
-            if (!$quiet && !$this->quiet) {
-                fwrite(\STDERR, sprintf("[%d/%d] Downloading: %s\n", $index, count($files), $file['name']));
-            }
+            $this->logger->info(sprintf("[%d/%d] Downloading: %s", $index, count($files), $file['name']));
 
             try {
                 $outputFile = $folderName . DIRECTORY_SEPARATOR . $file['name'];
@@ -88,20 +91,16 @@ class FolderDownloader
 
                 $downloaded[] = $outputFile;
             } catch (\Exception $e) {
-                if (!$quiet && !$this->quiet) {
-                    fwrite(\STDERR, sprintf("  ⚠ Failed: %s\n", $e->getMessage()));
-                }
+                $this->logger->warning(sprintf("  ⚠ Failed: %s", $e->getMessage()));
             }
         }
 
-        if (!$quiet && !$this->quiet) {
-            fwrite(\STDERR, sprintf(
-                "\n✓ Downloaded %d/%d files to %s\n",
-                count($downloaded),
-                count($files),
-                realpath($folderName),
-            ));
-        }
+        $this->logger->info(sprintf(
+            "\n✓ Downloaded %d/%d files to %s",
+            count($downloaded),
+            count($files),
+            realpath($folderName),
+        ));
 
         return [
             'files' => $downloaded,

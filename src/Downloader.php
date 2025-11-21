@@ -8,6 +8,8 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Cookie\FileCookieJar;
 use GuzzleHttp\Exception\GuzzleException;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Symfony\Component\DomCrawler\Crawler;
 use Zupolgec\GDown\Exceptions\FileURLRetrievalException;
 
@@ -19,6 +21,7 @@ class Downloader
     private Client $client;
     private null|string $cookieFile = null;
     private null|CookieJar $cookieJar = null;
+    private LoggerInterface $logger;
 
     public function __construct(
         private readonly bool $quiet = false,
@@ -27,7 +30,10 @@ class Downloader
         private readonly bool $useCookies = true,
         private readonly bool $verify = true,
         private readonly null|string $userAgent = null,
+        null|LoggerInterface $logger = null,
     ) {
+        // Use custom logger, or StderrLogger if not quiet, or NullLogger if quiet
+        $this->logger = $logger ?? ($quiet ? new NullLogger() : new StderrLogger());
         $this->initializeClient();
     }
 
@@ -45,9 +51,7 @@ class Downloader
                 'http' => $this->proxy,
                 'https' => $this->proxy,
             ];
-            if (!$this->quiet) {
-                fwrite(\STDERR, "Using proxy: {$this->proxy}\n");
-            }
+            $this->logger->info("Using proxy: {$this->proxy}");
         }
 
         if ($this->useCookies) {
@@ -189,9 +193,7 @@ class Downloader
 
         // Check if file already exists (resume mode)
         if ($resume && file_exists($output)) {
-            if (!$this->quiet) {
-                fwrite(\STDERR, "Skipping already downloaded file {$output}\n");
-            }
+            $this->logger->info("Skipping already downloaded file {$output}");
             return $output;
         }
 
@@ -224,19 +226,17 @@ class Downloader
             $tmpFile = $output . '.' . uniqid() . '.part';
         }
 
-        if (!$this->quiet) {
-            fwrite(\STDERR, "Downloading...\n");
-            if ($resume && $startSize > 0) {
-                fwrite(\STDERR, "Resume: {$tmpFile}\n");
-            }
-            if ($urlOrigin !== $url) {
-                fwrite(\STDERR, "From (original): {$urlOrigin}\n");
-                fwrite(\STDERR, "From (redirected): {$url}\n");
-            } else {
-                fwrite(\STDERR, "From: {$url}\n");
-            }
-            fwrite(\STDERR, 'To: ' . realpath(dirname($output)) . '/' . basename($output) . "\n\n");
+        $this->logger->info("Downloading...");
+        if ($resume && $startSize > 0) {
+            $this->logger->info("Resume: {$tmpFile}");
         }
+        if ($urlOrigin !== $url) {
+            $this->logger->info("From (original): {$urlOrigin}");
+            $this->logger->info("From (redirected): {$url}");
+        } else {
+            $this->logger->info("From: {$url}");
+        }
+        $this->logger->info('To: ' . realpath(dirname($output)) . '/' . basename($output));
 
         $this->downloadToFile($response, $tmpFile, $startSize);
 
@@ -464,8 +464,8 @@ class Downloader
             $totalSize = $contentLength !== null ? $contentLength + $startSize : null;
             $downloaded = $startSize;
 
-            if (!$this->quiet && $totalSize !== null) {
-                fwrite(\STDERR, sprintf("Total size: %s\n", $this->formatBytes($totalSize)));
+            if ($totalSize !== null) {
+                $this->logger->info(sprintf("Total size: %s", $this->formatBytes($totalSize)));
             }
 
             $startTime = microtime(true);
@@ -512,9 +512,7 @@ class Downloader
                 }
             }
 
-            if (!$this->quiet) {
-                fwrite(\STDERR, "\n");
-            }
+            // Progress complete - callback can handle any final output
         } finally {
             fclose($fp);
         }
