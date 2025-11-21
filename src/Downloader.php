@@ -271,6 +271,8 @@ class Downloader
                     continue;
                 }
 
+                // Read response body once
+                $content = null;
                 if (
                     $response->hasHeader('Content-Type')
                     && str_starts_with($response->getHeader('Content-Type')[0], 'text/html')
@@ -316,7 +318,11 @@ class Downloader
                 }
 
                 // Need to redirect with confirmation
-                $content = (string) $response->getBody();
+                // Reuse $content if already loaded, otherwise load it now
+                if ($content === null) {
+                    $content = (string) $response->getBody();
+                }
+                
                 $url = $this->getUrlFromGdriveConfirmation($content);
 
                 return $this->client->request('GET', $url, ['stream' => true]);
@@ -339,33 +345,33 @@ class Downloader
 
     private function getUrlFromGdriveConfirmation(string $contents): string
     {
-        $lines = explode("\n", $contents);
+        // Try to find download form (PROCESS ENTIRE HTML AT ONCE)
+        $crawler = new Crawler($contents);
+        $form = $crawler->filter('#download-form')->first();
 
+        if ($form->count() > 0) {
+            $action = $form->attr('action');
+            $action = str_replace('&amp;', '&', $action);
+            $parsedUrl = parse_url($action);
+            parse_str($parsedUrl['query'] ?? '', $queryParams);
+
+            foreach ($form->filter('input[type="hidden"]') as $input) {
+                $name = $input->getAttribute('name');
+                $value = $input->getAttribute('value');
+                $queryParams[$name] = $value;
+            }
+
+            $query = http_build_query($queryParams);
+            return $parsedUrl['scheme'] . '://' . $parsedUrl['host'] . ($parsedUrl['path'] ?? '') . '?' . $query;
+        }
+
+        // Fallback: try line-by-line regex patterns
+        $lines = explode("\n", $contents);
         foreach ($lines as $line) {
             // Try to find download URL in href
             if (preg_match('/href="(\/uc\?export=download[^"]+)"/', $line, $matches)) {
                 $url = 'https://docs.google.com' . html_entity_decode($matches[1]);
                 return str_replace('&amp;', '&', $url);
-            }
-
-            // Try to find download form
-            $crawler = new Crawler($line);
-            $form = $crawler->filter('#download-form')->first();
-
-            if ($form->count() > 0) {
-                $action = $form->attr('action');
-                $action = str_replace('&amp;', '&', $action);
-                $parsedUrl = parse_url($action);
-                parse_str($parsedUrl['query'] ?? '', $queryParams);
-
-                foreach ($form->filter('input[type="hidden"]') as $input) {
-                    $name = $input->getAttribute('name');
-                    $value = $input->getAttribute('value');
-                    $queryParams[$name] = $value;
-                }
-
-                $query = http_build_query($queryParams);
-                return $parsedUrl['scheme'] . '://' . $parsedUrl['host'] . ($parsedUrl['path'] ?? '') . '?' . $query;
             }
 
             // Try to find downloadUrl in JSON
