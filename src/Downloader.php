@@ -153,7 +153,9 @@ class Downloader
         $urlOrigin = $url;
         ['fileId' => $gdriveFileId, 'isDownloadLink' => $isGdriveDownloadLink] = UrlParser::parseUrl($url, !$fuzzy);
 
-        if ($fuzzy && $gdriveFileId) {
+        // Auto-convert /file/d/ and other Google Drive URLs to download format
+        // This is the standard URL format from Google Drive, so always convert it
+        if ($gdriveFileId && !$isGdriveDownloadLink) {
             $url = "https://drive.google.com/uc?id={$gdriveFileId}";
             $urlOrigin = $url;
             $isGdriveDownloadLink = true;
@@ -431,6 +433,22 @@ class Downloader
 
     private function downloadToFile($response, string $outputFile, int $startSize = 0): void
     {
+        // Detect Google Drive error/preview pages (NOT legitimate HTML files)
+        // Only check if:
+        // 1. Content-Type is text/html
+        // 2. No Content-Disposition header (actual downloads have this)
+        // 3. Small size (error pages are typically < 100KB)
+        $contentType = $response->hasHeader('Content-Type') ? $response->getHeader('Content-Type')[0] : '';
+        $hasContentDisposition = $response->hasHeader('Content-Disposition');
+        $contentLength = $response->hasHeader('Content-Length')
+            ? (int) $response->getHeader('Content-Length')[0]
+            : null;
+
+        $mightBeErrorPage =
+            str_starts_with($contentType, 'text/html')
+            && !$hasContentDisposition
+            && ($contentLength !== null && $contentLength < 100000);
+
         $fp = fopen($outputFile, $startSize > 0 ? 'ab' : 'wb');
         if ($fp === false) {
             throw new \RuntimeException("Cannot open file for writing: {$outputFile}");
@@ -438,9 +456,6 @@ class Downloader
 
         try {
             $body = $response->getBody();
-            $contentLength = $response->hasHeader('Content-Length')
-                ? (int) $response->getHeader('Content-Length')[0]
-                : null;
 
             $totalSize = $contentLength !== null ? $contentLength + $startSize : null;
             $downloaded = $startSize;
@@ -450,9 +465,33 @@ class Downloader
             }
 
             $startTime = microtime(true);
+            $firstChunk = true;
 
             while (!$body->eof()) {
                 $chunk = $body->read(self::CHUNK_SIZE);
+                
+                // Check first chunk for Google Drive error pages
+                if ($firstChunk && $downloaded === 0 && $mightBeErrorPage) {
+                    $firstChunk = false;
+                    // Check for specific Google Drive error page markers
+                    if (
+                        str_contains($chunk, 'Google Drive')
+                        && (
+                            str_contains($chunk, 'link sharing') 
+                            || str_contains($chunk, 'permission')
+                            || str_contains($chunk, 'Whoops!')
+                            || str_contains($chunk, 'drive-viewer')
+                        )
+                    ) {
+                        fclose($fp);
+                        unlink($outputFile);
+                        throw new FileURLRetrievalException(
+                            'Downloaded content is a Google Drive error/preview page instead of the requested file. ' .
+                            'This usually means the file is not shared publicly or the link is incorrect.'
+                        );
+                    }
+                }
+                
                 fwrite($fp, $chunk);
                 $downloaded += strlen($chunk);
 
