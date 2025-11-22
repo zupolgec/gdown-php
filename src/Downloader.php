@@ -96,7 +96,8 @@ class Downloader
             !$fuzzy,
         );
 
-        if ($fuzzy && $gdrive_file_id) {
+        // Auto-convert /file/d/ URLs to download format (same as download method)
+        if ($gdrive_file_id && !$is_gdrive_download_link) {
             $url = "https://drive.google.com/uc?id={$gdrive_file_id}";
             $is_gdrive_download_link = true;
         }
