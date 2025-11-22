@@ -102,8 +102,17 @@ class Downloader
             $is_gdrive_download_link = true;
         }
 
+        // Create a separate client with legacy User-Agent for getFileInfo
+        // Google Drive returns proper MIME types with Chrome 39 but generic types with modern Chrome
+        $fileInfoClient = new Client([
+            'verify' => $this->verify,
+            'headers' => [
+                'User-Agent' => UserAgent::LEGACY_FOR_FILE_INFO,
+            ],
+        ]);
+
         try {
-            $response = $this->client->request('GET', $url, [
+            $response = $fileInfoClient->request('GET', $url, [
                 'stream' => true,
                 'allow_redirects' => true,
                 'http_errors' => false,  // Don't throw on 4xx/5xx
@@ -117,7 +126,11 @@ class Downloader
                 ) {
                     $content = (string) $response->getBody();
                     $url = $this->getUrlFromGdriveConfirmation($content);
-                    $response = $this->client->request('GET', $url, ['stream' => true]);
+                    // Use same fileInfoClient to maintain legacy UA
+                    $response = $fileInfoClient->request('GET', $url, [
+                        'stream' => true,
+                        'http_errors' => false,
+                    ]);
                 }
             }
 

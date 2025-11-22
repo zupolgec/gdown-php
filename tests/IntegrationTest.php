@@ -221,8 +221,8 @@ test('get file info for small text file', function () {
     
     expect($info->name)->toBe('test.txt');
     expect($info->size)->toBe(4);
-    // Google Drive returns application/octet-stream or application/binary for downloads
-    expect($info->mimeType)->toBeIn(['application/octet-stream', 'application/binary']);
+    // With legacy Chrome 39 UA, Google Drive returns proper MIME types
+    expect($info->mimeType)->toBe('text/plain');
 })->group('integration', 'network', 'fileinfo');
 
 test('get file info for 100mb binary file', function () {
@@ -232,6 +232,7 @@ test('get file info for 100mb binary file', function () {
     
     expect($info->name)->toBe('100MB.bin');  // Uppercase MB
     expect($info->size)->toBe(100 * 1024 * 1024);
+    // Binary files return application/octet-stream even with legacy UA
     expect($info->mimeType)->toBeIn(['application/octet-stream', 'application/binary']);
 })->group('integration', 'network', 'fileinfo');
 
@@ -242,6 +243,6 @@ test('get file info for html file', function () {
     
     expect($info->name)->toBe('test.html');
     expect($info->size)->toBe(92);
-    // Google Drive returns generic MIME type for downloads, not the actual file type
-    expect($info->mimeType)->toBeIn(['application/octet-stream', 'application/binary', 'text/html']);
+    // HTML files return text/html with legacy UA
+    expect($info->mimeType)->toBe('text/html');
 })->group('integration', 'network', 'fileinfo');
