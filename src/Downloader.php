@@ -24,7 +24,7 @@ class Downloader
     private LoggerInterface $logger;
 
     public function __construct(
-        private readonly bool $quiet = false,
+        private readonly bool $quiet = true,
         private readonly null|string $proxy = null,
         private readonly null|float $speedLimit = null,
         private readonly bool $useCookies = true,
@@ -32,7 +32,7 @@ class Downloader
         private readonly null|string $userAgent = null,
         null|LoggerInterface $logger = null,
     ) {
-        // Use custom logger, or StderrLogger if not quiet, or NullLogger if quiet
+        // Use custom logger, or NullLogger if quiet (default), or StderrLogger if verbose
         $this->logger = $logger ?? ($quiet ? new NullLogger() : new StderrLogger());
         $this->initializeClient();
     }

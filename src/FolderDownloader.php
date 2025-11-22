@@ -18,7 +18,7 @@ class FolderDownloader
     private LoggerInterface $logger;
 
     public function __construct(
-        private readonly bool $quiet = false,
+        private readonly bool $quiet = true,
         private readonly null|string $userAgent = null,
         null|LoggerInterface $logger = null,
     ) {
