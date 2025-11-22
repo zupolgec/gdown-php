@@ -106,6 +106,7 @@ class Downloader
             $response = $this->client->request('GET', $url, [
                 'stream' => true,
                 'allow_redirects' => true,
+                'http_errors' => false,  // Don't throw on 4xx/5xx
             ]);
 
             if ($gdrive_file_id && $is_gdrive_download_link) {

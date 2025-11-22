@@ -213,3 +213,35 @@ test('download with verbose output (non-quiet mode)', function () {
     expect($result)->toBe($output);
     expect(file_get_contents($output))->toBe('test');
 })->group('integration', 'network');
+
+test('get file info for small text file', function () {
+    $info = GDown::getFileInfo(
+        url: 'https://drive.google.com/file/d/1aAlW5_7bNNsmInqDMMbSCtmzzhp7B1HY/view?usp=sharing'
+    );
+    
+    expect($info->name)->toBe('test.txt');
+    expect($info->size)->toBe(4);
+    // Google Drive returns application/octet-stream or application/binary for downloads
+    expect($info->mimeType)->toBeIn(['application/octet-stream', 'application/binary']);
+})->group('integration', 'network', 'fileinfo');
+
+test('get file info for 100mb binary file', function () {
+    $info = GDown::getFileInfo(
+        url: 'https://drive.google.com/file/d/1Zpy0qOJPPCqSHjQN0nA0s30iqc-X1V9A/view?usp=sharing'
+    );
+    
+    expect($info->name)->toBe('100MB.bin');  // Uppercase MB
+    expect($info->size)->toBe(100 * 1024 * 1024);
+    expect($info->mimeType)->toBeIn(['application/octet-stream', 'application/binary']);
+})->group('integration', 'network', 'fileinfo');
+
+test('get file info for html file', function () {
+    $info = GDown::getFileInfo(
+        url: 'https://drive.google.com/file/d/1lMyghvGkvtaEGQKcJoqZYrQ205NfuCTy/view?usp=drive_link'
+    );
+    
+    expect($info->name)->toBe('test.html');
+    expect($info->size)->toBe(92);
+    // Google Drive returns generic MIME type for downloads, not the actual file type
+    expect($info->mimeType)->toBeIn(['application/octet-stream', 'application/binary', 'text/html']);
+})->group('integration', 'network', 'fileinfo');

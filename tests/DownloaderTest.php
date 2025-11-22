@@ -67,13 +67,7 @@ test('download with invalid id throws exception', function () {
     );
 })->throws(FileURLRetrievalException::class);
 
-test('get file info', function () {
-    $downloader = new Downloader(quiet: true);
-    $fileInfo = $downloader->getFileInfo(url: 'https://raw.githubusercontent.com/wkentaro/gdown/main/README.md');
 
-    expect($fileInfo->name)->not()->toBeNull();
-    expect($fileInfo->size ?? 0)->toBeGreaterThan(0);
-});
 
 test('download with output directory', function () {
     $downloader = new Downloader(quiet: true);
