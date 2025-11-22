@@ -41,24 +41,26 @@ class UrlParser
         $fileId = null;
         if (isset($query['id'])) {
             $fileId = $query['id'];
-        } else {
-            $patterns = [
-                '/^\/file\/d\/(.*?)\/(edit|view)$/',
-                '/^\/file\/u\/[0-9]+\/d\/(.*?)\/(edit|view)$/',
-                '/^\/document\/d\/(.*?)\/(edit|htmlview|view)$/',
-                '/^\/document\/u\/[0-9]+\/d\/(.*?)\/(edit|htmlview|view)$/',
-                '/^\/presentation\/d\/(.*?)\/(edit|htmlview|view)$/',
-                '/^\/presentation\/u\/[0-9]+\/d\/(.*?)\/(edit|htmlview|view)$/',
-                '/^\/spreadsheets\/d\/(.*?)\/(edit|htmlview|view)$/',
-                '/^\/spreadsheets\/u\/[0-9]+\/d\/(.*?)\/(edit|htmlview|view)$/',
-            ];
+            return ['fileId' => $fileId, 'isDownloadLink' => $isDownloadLink];
+        }
 
-            foreach ($patterns as $pattern) {
-                if (preg_match($pattern, $path, $matches)) {
-                    $fileId = $matches[1];
-                    break;
-                }
+        $patterns = [
+            '/^\/file\/d\/(.*?)\/(edit|view)$/',
+            '/^\/file\/u\/[0-9]+\/d\/(.*?)\/(edit|view)$/',
+            '/^\/document\/d\/(.*?)\/(edit|htmlview|view)$/',
+            '/^\/document\/u\/[0-9]+\/d\/(.*?)\/(edit|htmlview|view)$/',
+            '/^\/presentation\/d\/(.*?)\/(edit|htmlview|view)$/',
+            '/^\/presentation\/u\/[0-9]+\/d\/(.*?)\/(edit|htmlview|view)$/',
+            '/^\/spreadsheets\/d\/(.*?)\/(edit|htmlview|view)$/',
+            '/^\/spreadsheets\/u\/[0-9]+\/d\/(.*?)\/(edit|htmlview|view)$/',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (!preg_match($pattern, $path, $matches)) {
+                continue;
             }
+            $fileId = $matches[1];
+            break;
         }
 
         // Note: Warning removed - URLs are now auto-converted in Downloader

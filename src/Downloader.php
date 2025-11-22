@@ -6,7 +6,6 @@ namespace Zupolgec\GDown;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Cookie\CookieJar;
-use GuzzleHttp\Cookie\FileCookieJar;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -39,42 +38,22 @@ class Downloader
 
     private function initializeClient(): void
     {
-        $config = [
-            'verify' => $this->verify,
-            'headers' => [
-                'User-Agent' => $this->userAgent ?? UserAgent::DEFAULT,
-            ],
-        ];
-
         if ($this->proxy !== null) {
-            $config['proxy'] = [
-                'http' => $this->proxy,
-                'https' => $this->proxy,
-            ];
             $this->logger->info("Using proxy: {$this->proxy}");
         }
 
         if ($this->useCookies) {
             $homeDir = $_SERVER['HOME'] ?? $_SERVER['USERPROFILE'] ?? '';
             $this->cookieFile = $homeDir . '/.cache/gdown/cookies.txt';
-
-            if (file_exists($this->cookieFile) && filesize($this->cookieFile) > 0) {
-                // Check if file contains valid JSON
-                $content = file_get_contents($this->cookieFile);
-                if ($content !== false && json_decode($content) !== null) {
-                    $this->cookieJar = new FileCookieJar($this->cookieFile, true);
-                    $config['cookies'] = $this->cookieJar;
-                } else {
-                    $this->cookieJar = new CookieJar();
-                    $config['cookies'] = $this->cookieJar;
-                }
-            } else {
-                $this->cookieJar = new CookieJar();
-                $config['cookies'] = $this->cookieJar;
-            }
+            $this->cookieJar = HttpClientFactory::createCookieJar($this->cookieFile);
         }
 
-        $this->client = new Client($config);
+        $this->client = HttpClientFactory::createClient(
+            verify: $this->verify,
+            userAgent: $this->userAgent,
+            proxy: $this->proxy,
+            cookieJar: $this->cookieJar,
+        );
     }
 
     /**
@@ -90,7 +69,6 @@ class Downloader
             $url = "https://drive.google.com/uc?id={$id}";
         }
 
-        $urlOrigin = $url;
         ['fileId' => $gdrive_file_id, 'isDownloadLink' => $is_gdrive_download_link] = UrlParser::parseUrl(
             $url,
             !$fuzzy,
@@ -104,12 +82,10 @@ class Downloader
 
         // Create a separate client with legacy User-Agent for getFileInfo
         // Google Drive returns proper MIME types with Chrome 39 but generic types with modern Chrome
-        $fileInfoClient = new Client([
-            'verify' => $this->verify,
-            'headers' => [
-                'User-Agent' => UserAgent::LEGACY_FOR_FILE_INFO,
-            ],
-        ]);
+        $fileInfoClient = HttpClientFactory::createClient(
+            verify: $this->verify,
+            userAgent: UserAgent::LEGACY_FOR_FILE_INFO,
+        );
 
         try {
             $response = $fileInfoClient->request('GET', $url, [
@@ -118,23 +94,10 @@ class Downloader
                 'http_errors' => false,  // Don't throw on 4xx/5xx
             ]);
 
-            if ($gdrive_file_id && $is_gdrive_download_link) {
-                // Handle Google Drive confirmation page
-                if (
-                    $response->hasHeader('Content-Type')
-                    && str_starts_with($response->getHeader('Content-Type')[0], 'text/html')
-                ) {
-                    $content = (string) $response->getBody();
-                    $url = $this->getUrlFromGdriveConfirmation($content);
-                    // Use same fileInfoClient to maintain legacy UA
-                    $response = $fileInfoClient->request('GET', $url, [
-                        'stream' => true,
-                        'http_errors' => false,
-                    ]);
-                }
-            }
+            // For getFileInfo, we don't process confirmation pages
+            // We just return the info for the initial response
 
-            $filename = $this->getFilenameFromResponse($response);
+            $filename = FilenameExtractor::extractFromResponse($response);
             $size = $response->hasHeader('Content-Length') ? (int) $response->getHeader('Content-Length')[0] : null;
             $mimeType = $response->hasHeader('Content-Type') ? $response->getHeader('Content-Type')[0] : null;
             $lastModified = $this->getModifiedTimeFromResponse($response);
@@ -169,30 +132,28 @@ class Downloader
             $url = "https://drive.google.com/uc?id={$id}";
         }
 
-        $urlOrigin = $url;
         ['fileId' => $gdriveFileId, 'isDownloadLink' => $isGdriveDownloadLink] = UrlParser::parseUrl($url, !$fuzzy);
 
         // Auto-convert /file/d/ and other Google Drive URLs to download format
         // This is the standard URL format from Google Drive, so always convert it
         if ($gdriveFileId && !$isGdriveDownloadLink) {
             $url = "https://drive.google.com/uc?id={$gdriveFileId}";
-            $urlOrigin = $url;
             $isGdriveDownloadLink = true;
         }
 
         // Handle Google Drive download with confirmation page
-        $response = $this->handleGoogleDriveDownload($url, $urlOrigin, $gdriveFileId, $isGdriveDownloadLink, $format);
+        $response = $this->handleGoogleDriveDownload($url, $gdriveFileId, $isGdriveDownloadLink, $format);
 
         $filenameFromUrl = null;
         $lastModifiedTime = null;
 
         if ($gdriveFileId && $isGdriveDownloadLink) {
-            $filenameFromUrl = $this->getFilenameFromResponse($response);
+            $filenameFromUrl = FilenameExtractor::extractFromResponse($response);
             $lastModifiedTime = $this->getModifiedTimeFromResponse($response);
         }
 
         if ($filenameFromUrl === null) {
-            $filenameFromUrl = basename(parse_url($url, PHP_URL_PATH) ?: 'download');
+            $filenameFromUrl = FilenameExtractor::extractFromUrl($url);
         }
 
         if ($output === null) {
@@ -203,7 +164,7 @@ class Downloader
             if (!is_dir($output)) {
                 mkdir($output, 0755, true);
             }
-            $output = $output . $filenameFromUrl;
+            $output .= $filenameFromUrl;
         }
 
         // Check if file already exists (resume mode)
@@ -230,6 +191,7 @@ class Downloader
                     ]);
                 } catch (GuzzleException $e) {
                     // If range not supported, start fresh
+                    $this->logger->debug("Resume not supported: {$e->getMessage()}");
                     $startSize = 0;
                     unlink($tmpFile);
                     $tmpFile = null;
@@ -245,12 +207,7 @@ class Downloader
         if ($resume && $startSize > 0) {
             $this->logger->info("Resume: {$tmpFile}");
         }
-        if ($urlOrigin !== $url) {
-            $this->logger->info("From (original): {$urlOrigin}");
-            $this->logger->info("From (redirected): {$url}");
-        } else {
-            $this->logger->info("From: {$url}");
-        }
+        $this->logger->info("From: {$url}");
         $this->logger->info('To: ' . realpath(dirname($output)) . '/' . basename($output));
 
         $this->downloadToFile($response, $tmpFile, $startSize);
@@ -266,7 +223,6 @@ class Downloader
 
     private function handleGoogleDriveDownload(
         string $url,
-        string $urlOrigin,
         null|string $gdriveFileId,
         bool $isGdriveDownloadLink,
         null|string $format,
@@ -285,7 +241,7 @@ class Downloader
                 }
 
                 // Check if it's a Google Doc/Sheet/Slide (returns 500 on /uc?id= URL)
-                if ($url === $urlOrigin && $response->getStatusCode() === 500) {
+                if ($response->getStatusCode() === 500) {
                     // Force English language for consistent title matching
                     $url = "https://drive.google.com/open?id={$gdriveFileId}&hl=en";
                     $retries++;
@@ -301,25 +257,11 @@ class Downloader
                     $content = (string) $response->getBody();
 
                     // Check for Google Docs/Sheets/Slides
-                    if (preg_match('/<title>(.+)<\/title>/', $content, $matches)) {
-                        $title = $matches[1];
-
-                        if (str_ends_with($title, ' - Google Docs')) {
-                            $url =
-                                "https://docs.google.com/document/d/{$gdriveFileId}/export?format="
-                                . ($format ?? 'docx');
-                            $retries++;
-                            continue;
-                        } elseif (str_ends_with($title, ' - Google Sheets')) {
-                            $url =
-                                "https://docs.google.com/spreadsheets/d/{$gdriveFileId}/export?format="
-                                . ($format ?? 'xlsx');
-                            $retries++;
-                            continue;
-                        } elseif (str_ends_with($title, ' - Google Slides')) {
-                            $url =
-                                "https://docs.google.com/presentation/d/{$gdriveFileId}/export?format="
-                                . ($format ?? 'pptx');
+                    $title = GoogleDriveDetector::extractTitle($content);
+                    if ($title !== null) {
+                        $documentType = GoogleDriveDetector::detectDocumentType($title);
+                        if ($documentType !== null) {
+                            $url = GoogleDriveDetector::getExportUrl($gdriveFileId, $documentType, $format);
                             $retries++;
                             continue;
                         }
@@ -353,7 +295,7 @@ class Downloader
                     . $e->getMessage()
                     . "\n\n"
                     . "You may still be able to access the file from the browser:\n\n"
-                    . "\t{$urlOrigin}\n\n"
+                    . "\t{$url}\n\n"
                     . "but GDown can't. Please check connections and permissions.",
                     0,
                     $e,
@@ -374,13 +316,14 @@ class Downloader
             $action = $form->attr('action');
             $action = str_replace('&amp;', '&', $action);
             $parsedUrl = parse_url($action);
+            $queryParams = [];
             parse_str($parsedUrl['query'] ?? '', $queryParams);
 
-            foreach ($form->filter('input[type="hidden"]') as $input) {
-                $name = $input->getAttribute('name');
-                $value = $input->getAttribute('value');
+            $form->filter('input[type="hidden"]')->each(static function (Crawler $input) use (&$queryParams) {
+                $name = $input->attr('name');
+                $value = $input->attr('value');
                 $queryParams[$name] = $value;
-            }
+            });
 
             $query = http_build_query($queryParams);
             return $parsedUrl['scheme'] . '://' . $parsedUrl['host'] . ($parsedUrl['path'] ?? '') . '?' . $query;
@@ -415,26 +358,7 @@ class Downloader
         . 'Check FAQ in https://github.com/wkentaro/gdown?tab=readme-ov-file#faq.');
     }
 
-    private function getFilenameFromResponse($response): null|string
-    {
-        if (!$response->hasHeader('Content-Disposition')) {
-            return null;
-        }
 
-        $contentDisposition = urldecode($response->getHeader('Content-Disposition')[0]);
-
-        // Try UTF-8 format first
-        if (preg_match("/filename\\*=UTF-8''(.+)/", $contentDisposition, $matches)) {
-            return str_replace(DIRECTORY_SEPARATOR, '_', $matches[1]);
-        }
-
-        // Try standard format
-        if (preg_match('/attachment; filename="(.+?)"/', $contentDisposition, $matches)) {
-            return $matches[1];
-        }
-
-        return null;
-    }
 
     private function getModifiedTimeFromResponse($response): null|\DateTimeInterface
     {
@@ -480,7 +404,7 @@ class Downloader
             $downloaded = $startSize;
 
             if ($totalSize !== null) {
-                $this->logger->info(sprintf("Total size: %s", $this->formatBytes($totalSize)));
+                $this->logger->info(sprintf("Total size: %s", ByteFormatter::formatBytes($totalSize)));
             }
 
             $startTime = microtime(true);
@@ -544,25 +468,14 @@ class Downloader
                 "\r[%s] %3.1f%% %s / %s",
                 $bar,
                 $percentage,
-                $this->formatBytes($downloaded),
-                $this->formatBytes($total),
+                ByteFormatter::formatBytes($downloaded),
+                ByteFormatter::formatBytes($total),
             );
-        } else {
-            fprintf(STDERR, "\rDownloaded: %s", $this->formatBytes($downloaded));
-        }
-    }
-
-    private function formatBytes(int $bytes): string
-    {
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $unitIndex = 0;
-        $size = (float) $bytes;
-
-        while ($size >= 1024 && $unitIndex < (count($units) - 1)) {
-            $size /= 1024;
-            $unitIndex++;
+            return;
         }
 
-        return sprintf('%.2f %s', $size, $units[$unitIndex]);
+        fprintf(STDERR, "\rDownloaded: %s", ByteFormatter::formatBytes($downloaded));
     }
+
+
 }

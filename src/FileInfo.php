@@ -22,15 +22,6 @@ class FileInfo
             return 'Unknown';
         }
 
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $size = $this->size;
-        $unitIndex = 0;
-
-        while ($size >= 1024 && $unitIndex < (count($units) - 1)) {
-            $size /= 1024;
-            $unitIndex++;
-        }
-
-        return sprintf('%.2f %s', $size, $units[$unitIndex]);
+        return ByteFormatter::formatBytes($this->size);
     }
 }

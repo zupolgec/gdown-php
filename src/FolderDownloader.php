@@ -24,12 +24,10 @@ class FolderDownloader
     ) {
         $this->logger = $logger ?? ($quiet ? new NullLogger() : new StderrLogger());
         
-        $this->client = new Client([
-            'verify' => true,
-            'headers' => [
-                'User-Agent' => $this->userAgent ?? UserAgent::DEFAULT,
-            ],
-        ]);
+        $this->client = HttpClientFactory::createClient(
+            verify: true,
+            userAgent: $this->userAgent,
+        );
 
         $this->downloader = new Downloader(
             quiet: $this->quiet,
@@ -142,13 +140,12 @@ class FolderDownloader
             $html = (string) $response->getBody();
 
             // Try to extract folder name from title
-            if (preg_match('/<title>(.+?) - Google Drive<\/title>/', $html, $matches)) {
-                $name = trim($matches[1]);
-                // Sanitize folder name
-                $name = preg_replace('/[^a-zA-Z0-9_\-. ]/', '_', $name);
-                return $name ?: 'gdrive_folder';
+            $name = GoogleDriveDetector::extractFolderName($html);
+            if ($name !== null) {
+                return $name;
             }
         } catch (\Exception $e) {
+            $this->logger->warning("Failed to extract folder name: {$e->getMessage()}");
             // Fallback to folder ID
         }
 
@@ -181,7 +178,7 @@ class FolderDownloader
 
             if ($encodedData === null) {
                 // Debug: check if the variable exists at all
-                if (strpos($html, '_DRIVE_ivd') === false) {
+                if (!str_contains($html, '_DRIVE_ivd')) {
                     throw new \RuntimeException('Cannot retrieve the folder information from the link. '
                     . 'The _DRIVE_ivd variable was not found in the page. '
                     . 'You may need to change the permission to "Anyone with the link".');
@@ -250,9 +247,7 @@ class FolderDownloader
         // Replace \x sequences with actual bytes
         $decoded = preg_replace_callback(
             '/\\\\\\\\x([0-9a-fA-F]{2})/',
-            function ($matches) {
-                return chr(hexdec($matches[1]));
-            },
+            static fn ($matches) => chr(hexdec($matches[1])),
             $str,
         );
 

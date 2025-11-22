@@ -5,26 +5,29 @@ declare(strict_types=1);
 use Zupolgec\GDown\Downloader;
 use Zupolgec\GDown\Exceptions\FileURLRetrievalException;
 
-beforeEach(function () {
-    $this->testDir = sys_get_temp_dir() . '/gdown_test_' . uniqid();
-    mkdir($this->testDir, 0755, true);
+$testDir = '';
+
+beforeEach(function () use (&$testDir) {
+    $testDir = sys_get_temp_dir() . '/gdown_test_' . uniqid();
+    mkdir($testDir, 0755, true);
 });
 
-afterEach(function () {
-    if (is_dir($this->testDir)) {
-        $files = glob($this->testDir . '/*');
+afterEach(function () use (&$testDir) {
+    if (is_dir($testDir)) {
+        $files = glob($testDir . '/*');
         foreach ($files as $file) {
-            if (is_file($file)) {
-                unlink($file);
+            if (!is_file($file)) {
+                continue;
             }
+            unlink($file);
         }
-        rmdir($this->testDir);
+        rmdir($testDir);
     }
 });
 
-test('download regular url', function () {
+test('download regular url', function () use (&$testDir) {
     $downloader = new Downloader(quiet: true);
-    $output = $this->testDir . '/test_file.txt';
+    $output = $testDir . '/test_file.txt';
 
     $result = $downloader->download(
         url: 'https://raw.githubusercontent.com/wkentaro/gdown/3.1.0/gdown/__init__.py',
@@ -36,11 +39,11 @@ test('download regular url', function () {
     expect(filesize($output))->toBeGreaterThan(0);
 });
 
-test('download with invalid url', function () {
+test('download with invalid url', function () use (&$testDir) {
     $downloader = new Downloader(quiet: true);
     $downloader->download(
         url: 'https://invalid-domain-that-does-not-exist-12345.com/file.txt',
-        output: $this->testDir . '/output.txt',
+        output: $testDir . '/output.txt',
     );
 })->throws(FileURLRetrievalException::class);
 
@@ -57,9 +60,9 @@ test('download with both url and id', function () {
     );
 })->throws(\InvalidArgumentException::class, 'Either url or id must be specified');
 
-test('download with invalid id throws exception', function () {
+test('download with invalid id throws exception', function () use (&$testDir) {
     $downloader = new Downloader(quiet: true);
-    $output = $this->testDir . '/test_file.txt';
+    $output = $testDir . '/test_file.txt';
 
     $downloader->download(
         id: 'invalid_file_id_that_does_not_exist',
@@ -69,21 +72,21 @@ test('download with invalid id throws exception', function () {
 
 
 
-test('download with output directory', function () {
+test('download with output directory', function () use (&$testDir) {
     $downloader = new Downloader(quiet: true);
 
     $result = $downloader->download(
         url: 'https://raw.githubusercontent.com/wkentaro/gdown/3.1.0/gdown/__init__.py',
-        output: $this->testDir . '/',
+        output: $testDir . '/',
     );
 
-    expect($result)->toStartWith($this->testDir);
+    expect($result)->toStartWith($testDir);
     expect($result)->toBeFile();
 });
 
-test('download resume', function () {
+test('download resume', function () use (&$testDir) {
     $downloader = new Downloader(quiet: true);
-    $output = $this->testDir . '/resume_test.txt';
+    $output = $testDir . '/resume_test.txt';
 
     $downloader->download(
         url: 'https://raw.githubusercontent.com/wkentaro/gdown/main/README.md',
